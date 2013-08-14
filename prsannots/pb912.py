@@ -8,6 +8,7 @@ import re
 import fnmatch
 import sqlite3
 import generic
+from xml.dom import minidom
 
 PB_PEN, PB_HIGHLIGHT, PB_HIGHLIGHT_NOTE = "16", "32","64"
 
@@ -17,7 +18,7 @@ class Reader(generic.Reader):
         generic.Reader.__init__(self, path)
         self.db = sqlite3.connect(os.path.join(path, 'system', 'explorer-2', 'explorer-2.db'))
         self.annotation_dir = os.path.join('system', 'config', 'Active Contents')
-        self.path_prefix = '/mnt/ext1'
+        self.path_prefix = '/mnt/ext1/'
     
     def _get_books(self):
         #c = self.db.cursor()
@@ -45,36 +46,37 @@ class Reader(generic.Reader):
       
     def _convert_path(self, path):
       #convert a path on the device to a readable file path
-      return os.path.join(self.path, path[len(self.path_prefix):])
+      return path[len(self.path_prefix):]
       
 class Book(generic.Book):
   
     def __init__(self, reader, annotation_file):
         self.annotation_file = annotation_file
         self.raw_path = reader._get_raw_path(annotation_file)
-        self.file_path = reader._convert_path(self.raw_path)
+        file = reader._convert_path(self.raw_path)
         
         c = reader.db.cursor()
         c.execute('''select books.id, books.title
                         from books
                         where books.path = "{path}"'''.format(path=self.raw_path))
         row = c.fetchone()  
-        generic.Book.__init__(self, reader, row[0], row[1], self.file_path, '')
+        generic.Book.__init__(self, reader, row[0], row[1], file, '')
     
     def _get_annotations(self):
 
         annotations = []
         with open(os.path.join(self.reader.path, self.reader.annotation_dir, self.annotation_file)) as annotation_file:    
+          pattern = "\<!-- type=\"(\\d+)\".+\sposition=\"#pdfloc\([0-9a-f]+,(\d+)[\d,]*\)\"\sendposition=\"#pdfloc\([0-9a-f]+,[\d,]+\)\"(\ssvgpath=\"(([^\\0\\\"]|\\\\\")+))?\""
           for line in annotation_file:
-            match = re.match("\<!-- type=\"(\\d+)\".+\sposition=\"#pdfloc\([0-9a-f]+,(\d+)[\d,]*\)\"\sendposition=\"#pdfloc\([0-9a-f]+,[\d,]+\)\"(\ssvgpath=\"(([^\\0\\\"]|\\\\\")+))?\"")
+            match = re.match(pattern, line)
 
             if match and match.group(1) == PB_PEN:
               #freehand
               page = match.group(2)
               svg_filename = match.group(4)
-              svg_path = os.path.join(annotation_file_path, svg_filename)
-              svg_dim = self._get_svg_dim(svg_path)
-              annotations.append(generic.Freehand(self, page, svg_path, 0, 0, svg_dim[1], svg_dim[2], 1))
+              svg_path = os.path.join(self.reader.annotation_dir, svg_filename)
+              svg_dim = self._get_svg_dim(os.path.join(self.reader.path, svg_path))
+              annotations.append(Freehand(self, page, svg_path, 0, 0, svg_dim[0], svg_dim[1], 1))
             
             elif match and match.group(2) == PB_HIGHLIGHT:
               #highlight
@@ -116,13 +118,19 @@ class Book(generic.Book):
     def _get_svg_dim(self, path):
         with open(path,'r') as svg_file:
           first = svg_file.readline()
-          match = re.match("width=\"(\d+)\"\s+height=\"(\d+)\"")
-        
+          match = re.search("width=\"(\d+)\"\s+height=\"(\d+)\"", first)
           if match: 
             return match.group(1), match.group(2)
           
         return None
        
-      
+class Freehand(generic.Freehand):
+    @property
+    def svg(self):
+      """The SVG associated with the annotation, as a minidom object."""
+      if not hasattr(self, '_svg'):
+          doc = minidom.parse(os.path.join(self.book.reader.path, self.svg_file))
+          self._svg = doc.getElementsByTagNameNS('http://www.w3.org/2000/svg','svg')[0]
+      return self._svg        
 
         
