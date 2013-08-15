@@ -5,6 +5,7 @@
 
 from pyPdf.pdf import ContentStream
 from pyPdf.generic import ArrayObject, NameObject
+import re
 
 class StupidSVGInterpreterError(Exception):
     pass
@@ -86,7 +87,26 @@ def polyline(node):
     commands.append('Q')
     return commands
 
-ELEMENT_FUNCS = {'polyline': polyline}
+def path(node):
+    attr_func_map = {'stroke-width': lambda w: '%s w' % w}
+  
+    commands = []
+    for attr in attr_func_map:
+        attrval = node.getAttribute(attr)
+        if attrval:
+            commands.append(attr_func_map[attr](attrval))
+  
+    pts = re.sub(r"([A-Z])(\d+),(\d+)", r"\2 \3 \1 ", node.getAttribute('d')).lower() + "S"
+    commands.append(pts)
+  
+    commands.insert(0, 'q')
+    commands.append('Q')
+    return commands
+  
+def dummy(node):
+    return ""
+    
+ELEMENT_FUNCS = {'polyline': polyline, 'path': path, 'desc': dummy, 'defs': dummy}
 
 
 if __name__ == '__main__':
