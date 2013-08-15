@@ -10,7 +10,7 @@ import sqlite3
 import generic
 from xml.dom import minidom
 
-PB_PEN, PB_HIGHLIGHT, PB_HIGHLIGHT_NOTE = "16", "32","64"
+PB_PEN, PB_HIGHLIGHT, PB_HIGHLIGHT_TEXT = "16", "32","64"
 
 class Reader(generic.Reader):
     
@@ -66,10 +66,12 @@ class Book(generic.Book):
 
         annotations = []
         with open(os.path.join(self.reader.path, self.reader.annotation_dir, self.annotation_file)) as annotation_file:    
-          pattern = "\<!-- type=\"(\\d+)\".+\sposition=\"#pdfloc\([0-9a-f]+,(\d+)[\d,]*\)\"\sendposition=\"#pdfloc\([0-9a-f]+,[\d,]+\)\"(\ssvgpath=\"(([^\\0\\\"]|\\\\\")+))?\""
-          for line in annotation_file:
-            match = re.match(pattern, line)
+          pattern = "\<!-- type=\"(\\d+)\".+\sposition=\"#pdfloc\([0-9a-f]+,(\d+)[\d,]*\)\"\sendposition=\"#pdfloc\([0-9a-f]+,[\d,]+\)\"(\ssvgpath=\"(([^\\0\\\"]|\\\\\")+)\")?"
 
+          line = annotation_file.readline()
+          while line:
+            match = re.match(pattern, line)
+            
             if match and match.group(1) == PB_PEN:
               #freehand
               page = match.group(2)
@@ -82,36 +84,36 @@ class Book(generic.Book):
               #highlight
               page = match.group(2)
               highlight_line = annotation_file.readline()
-              match = re.match("\>([^\>\<]*)\</div\>", highlight_line)
+              match = re.search("\>([^\>\<]*)\</div\>", highlight_line)
             
               if match:
                 text = match.group(1)
               else:
                 text = ""
               
-              annotations.append(generic.Highlight(self, page, text, HIGHLIGHT))
+              annotations.append(Highlight(self, page, text, generic.HIGHLIGHT))
         
             elif match and match.group(1) == PB_HIGHLIGHT_TEXT:
               #highlight with text
               page = match.group(2)
-            
+             
               highlight_line = annotation_file.readline()
-              highlight_match = re.match("\>([^\>\<]*)\</font\>", highlight_line)
+              highlight_match = re.search("\>([^\>\<]*)\</div\>", highlight_line)
               if highlight_match:
                 highlighted_text = highlight_match.group(1)
               else:
                 highlighted_text = ""
             
               note_line = annotation_file.readline()
-              note_match = re.match("\>([^\>\<]*)\</div\>", note_line)
+              note_match = re.search("\>([^\>\<]*)\</font\>", note_line)
             
               if note_match:
                 note_text = note_match.group(1)
               else:
                 note_text = ""
-                           
-              annotations.append(generic.Highlight(self, page, highlighted_text, HIGHLIGHT_TEXT, note_text))
+              annotations.append(Highlight(self, page, highlighted_text, generic.HIGHLIGHT_TEXT, note_text))
         
+            line = annotation_file.readline()
         return annotations
         
     def _get_svg_dim(self, path):
@@ -130,6 +132,14 @@ class Freehand(generic.Freehand):
       if not hasattr(self, '_svg'):
           doc = minidom.parse(os.path.join(self.book.reader.path, self.svg_file))
           self._svg = doc.getElementsByTagNameNS('http://www.w3.org/2000/svg','svg')[0]
-      return self._svg        
+      return self._svg
+      
+class Highlight(generic.Highlight):
+    @property
+    def text_content(self):
+        if self.content_type is generic.HIGHLIGHT_TEXT:
+            return self.content
+        else:
+            return generic.Highlight.text_content
 
         
