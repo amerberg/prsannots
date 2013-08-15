@@ -78,11 +78,11 @@ class Book(generic.Book):
               svg_dim = self._get_svg_dim(os.path.join(self.reader.path, svg_path))
               annotations.append(Freehand(self, page, svg_path, 0, 0, svg_dim[0], svg_dim[1], 1))
             
-            elif match and match.group(2) == PB_HIGHLIGHT:
+            elif match and match.group(1) == PB_HIGHLIGHT:
               #highlight
               page = match.group(2)
               highlight_line = annotation_file.readline()
-              match = re.match("\>([^\>\<]*)\</div\>")
+              match = re.match("\>([^\>\<]*)\</div\>", highlight_line)
             
               if match:
                 text = match.group(1)
@@ -91,20 +91,19 @@ class Book(generic.Book):
               
               annotations.append(generic.Highlight(self, page, text, HIGHLIGHT))
         
-            elif match and match.group(2) == PB_HIGHLIGHT_TEXT:
+            elif match and match.group(1) == PB_HIGHLIGHT_TEXT:
               #highlight with text
               page = match.group(2)
             
               highlight_line = annotation_file.readline()
-              highlight_match = re.match("\>([^\>\<]*)\</font\>")
-            
+              highlight_match = re.match("\>([^\>\<]*)\</font\>", highlight_line)
               if highlight_match:
                 highlighted_text = highlight_match.group(1)
               else:
                 highlighted_text = ""
             
               note_line = annotation_file.readline()
-              note_match = re.match("\>([^\>\<]*)\</div\>")
+              note_match = re.match("\>([^\>\<]*)\</div\>", note_line)
             
               if note_match:
                 note_text = note_match.group(1)
