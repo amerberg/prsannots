@@ -140,6 +140,6 @@ class Highlight(generic.Highlight):
         if self.content_type is generic.HIGHLIGHT_TEXT:
             return self.content
         else:
-            return generic.Highlight.text_content
+            return None
 
         
